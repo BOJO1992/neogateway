@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Provider {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  category    String   // "first-party", "inference", "gateway", "cloud", "chinese", "asian", "hosting", "emerging"
+  region      String   @default("global")
+  baseUrl     String
+  apiFormat   String   @default("openai") // "openai", "anthropic", "google", "custom"
+  authType    String   @default("bearer") // "bearer", "header", "query"
+  authHeader  String   @default("Authorization")
+  keyPrefix   String   @default("")
+  modelsUrl   String   @default("")
+  docsUrl     String   @default("")
+  pricing     String   @default("") // JSON string
+  freeTier    Boolean  @default(false)
+  status      String   @default("active")
+  discoveredAt DateTime @default(now())
+  lastChecked DateTime?
+  testResults Json?
+  notes       String   @default("")
+
+  // Gateway config
+  priority    Int      @default(0)  // higher = used first
+  enabled     Boolean  @default(true)
+  apiKey      String   @default("") // encrypted key stored in DB
+  customBaseUrl String @default("") // user override for sandbox
+  quotaLimit  Int      @default(0)  // 0 = unlimited
+  quotaUsed   Int      @default(0)
+  quotaReset  DateTime?
+  avgLatency  Int      @default(0) // ms
+  totalCalls  Int      @default(0)
+  errorCount  Int      @default(0)
+
+  models      ProviderModel[]
+  tests       SandboxTest[]
+  gatewayLogs  GatewayLog[]
+}
+
+model ProviderModel {
+  id          String   @id @default(cuid())
+  providerId  String
+  provider    Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  modelId     String
+  modelName   String
+  contextWindow Int?
+  maxOutput   Int?
+  pricing     String   @default("")
+  capabilities String   @default("[]") // JSON array
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+}
+
+model SandboxTest {
+  id          String   @id @default(cuid())
+  providerId  String
+  provider    Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  modelId     String
+  testType    String   // "chat", "streaming", "function_calling", "vision", "latency"
+  status      String   @default("pending")
+  requestJson String   @default("{}")
+  responseJson String  @default("{}")
+  latencyMs   Int?
+  error       String   @default("")
+  createdAt   DateTime @default(now())
+  sandboxMode Boolean  @default(false) // true = isolated sandbox test
+}
+
+model GatewayLog {
+  id          String   @id @default(cuid())
+  providerId  String?
+  provider    Provider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  modelId     String
+  requestHash String   @default("")
+  inputTokens Int      @default(0)
+  outputTokens Int     @default(0)
+  latencyMs   Int
+  status      String   // "success", "fallback", "error"
+  errorMessage String  @default("")
+  agentMode   Boolean  @default(false)
+  toolCalls   Int      @default(0)
+  createdAt   DateTime @default(now())
+}
+
+model MonitorEvent {
+  id          String   @id @default(cuid())
+  eventType   String
+  providerSlug String?
+  title       String
+  description String   @default("")
+  source      String   @default("")
+  severity    String   @default("info")
+  resolved    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model ApiKey {
+  id          String   @id @default(cuid())
+  key         String   @unique // "gw-" + random
+  name        String
+  providerIds String   @default("[]") // JSON array of provider IDs to route to (empty = all enabled)
+  rateLimit   Int      @default(60) // req/min
+  totalLimit  Int      @default(0) // 0 = unlimited
+  totalUsed   Int      @default(0)
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  lastUsed    DateTime?
+}

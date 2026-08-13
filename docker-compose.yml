@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  gateway:
+    build: .
+    container_name: omniroute-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=file:/app/data/gateway.db
+      - NODE_ENV=production
+    volumes:
+      - gateway-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/stats"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  gateway-data:
+    driver: local
